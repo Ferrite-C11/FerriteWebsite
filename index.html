@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ferrite</title>
+<meta name="description" content="A neural-network inference runtime in 222 KB of C11, with zero dependencies.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="container topbar-inner">
+    <a class="brand" href="#top">
+      <svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="12" cy="12" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/>
+      </svg>
+      <span>Ferrite</span>
+    </a>
+
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav id="nav" class="nav">
+      <a href="#why">Why</a>
+      <a href="#demo">Demo</a>
+      <a href="#pipeline">How it works</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#correctness">Correctness</a>
+      <a href="#performance">Performance</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#build">Build</a>
+      <a class="nav-gh" href="https://github.com/AaravGupta17/Ferrite">GitHub &#8599;</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- =============================  HERO  ============================= -->
+<section id="top" class="hero">
+  <div class="container">
+    <p class="eyebrow">C11 &middot; zero dependencies &middot; MIT</p>
+    <h1>Ferrite</h1>
+    <p class="lede">A neural-network inference runtime in <strong>222&nbsp;KB of C11</strong>, with zero dependencies.</p>
+    <p class="sub">
+      It parses ONNX protobufs with its own wire parser, plans activation memory with its own
+      lifetime-aware allocator, and runs hand-written kernels.
+      <span class="nothing">No BLAS. No protobuf library. No SIMD wrapper. Nothing but libc.</span>
+    </p>
+
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/AaravGupta17/Ferrite">View on GitHub</a>
+      <a class="btn" href="#pipeline">How it works</a>
+    </div>
+
+    <ul class="stats">
+      <li><span class="stat-n">222 KB</span><span class="stat-l">stripped binary</span></li>
+      <li><span class="stat-n">0</span><span class="stat-l">dependencies</span></li>
+      <li><span class="stat-n">97.52%</span><span class="stat-l">MNIST accuracy</span></li>
+      <li><span class="stat-n">1.5 KB</span><span class="stat-l">peak activations</span></li>
+    </ul>
+  </div>
+</section>
+
+<!-- =============================  WHY  ============================== -->
+<section id="why" class="section">
+  <div class="container">
+    <p class="eyebrow">The claim</p>
+    <h2>83&times; smaller. 2.3&times; slower. Numerically identical.</h2>
+    <p class="section-lede">
+      Those numbers are measured, not estimated, and every one of them has a command
+      on this page that reproduces it.
+    </p>
+
+    <div class="table-wrap">
+      <table class="cmp">
+        <thead>
+          <tr><th></th><th class="col-us">Ferrite</th><th>ONNX Runtime</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>Binary</th><td class="col-us"><b>222 KB</b> stripped</td><td>18.4 MB <code>onnxruntime.dll</code></td></tr>
+          <tr><th>Dependencies</th><td class="col-us"><b>none</b></td><td>many</td></tr>
+          <tr><th>MNIST accuracy</th><td class="col-us"><b>97.52%</b> (9752/10000)</td><td>same model, same weights</td></tr>
+          <tr><th>Latency, 1 thread</th><td class="col-us">2.42 ms</td><td><b>1.06 ms</b></td></tr>
+          <tr><th>Agreement</th><td class="col-us"><code>max_abs &#8776; 1e-8</code>, 3 of 7 models <b>bit-exact</b></td><td>reference</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="note">
+      Ferrite is not trying to beat ONNX Runtime. It is trying to show how much of a
+      modern inference runtime you can rebuild from first principles and still land on
+      the same numbers.
+    </p>
+  </div>
+</section>
+
+<!-- =============================  DEMO  ============================= -->
+<section id="demo" class="section alt">
+  <div class="container">
+    <p class="eyebrow">Proof</p>
+    <h2>See it work</h2>
+    <p class="section-lede">
+      A model trained in PyTorch, exported to ONNX, and executed here by C code that
+      shares nothing with PyTorch or ONNX Runtime.
+    </p>
+
+    <div class="terminal">
+      <div class="terminal-bar"><span></span><span></span><span></span><em>./build/demo_mnist</em></div>
+<pre class="plain"><code>                        ++@@##..
+                      ..@@@@@@==
+                    ..##@@@@@@==
+                  ==##@@@@@@@@**==::
+                  @@@@@@@@@@@@@@@@%%::
+                **@@@@@@@@@@%%%%@@@@@@
+              ::%%@@@@@@@@++--::++@@@@==
+            ..%%@@@@@@%%++      ..%%@@@@==
+            ..@@@@@@##..          ==@@@@@@..
+            ..@@@@##..            ..##@@@@..
+
+    Ferrite says: 0   (100.0% confident)   truth: 0  OK
+    0.286 ms
+
+---------------------------------------------
+  10/10 correct on the embedded samples
+  0.286 ms/inference (mean of 10)
+
+  model load    0.6 ms
+  weights       398 KB
+  activations   1.5 KB peak
+  <b class="punch">dependencies  none</b></code></pre>
+    </div>
+
+    <p class="caption">
+      <strong>1.5 KB of activation memory</strong> for the whole forward pass &mdash; and
+      that last line is printed by the program itself.
+    </p>
+
+    <h3>Reproduce it end to end</h3>
+    <p>Train, export, run, and score the full 10,000-image test set:</p>
+<pre><code class="language-sh">pip install torch                    # torchvision not required
+python tools/train_mnist.py          # trains, reports 97.52%, writes tests/mnist.onnx
+cmake --build build --target mnist_eval
+./build/mnist_eval tests/mnist.onnx build/mnist-data/test_images.bin build/mnist-data/test_labels.bin</code></pre>
+
+<pre class="plain"><code>Ferrite MNIST accuracy: 97.52% (9752/10000)
+  0.303 ms/image over the full test set
+  3300 images/s single-threaded
+  activations 1.5 KB peak</code></pre>
+
+    <p class="note">
+      Ferrite's accuracy matches PyTorch's to the image. That is Ferrite's own
+      measurement over all 10,000 test images &mdash; not a number copied from the
+      training script.
+    </p>
+  </div>
+</section>
+
+<!-- ===========================  PIPELINE  =========================== -->
+<section id="pipeline" class="section">
+  <div class="container">
+    <p class="eyebrow">Architecture</p>
+    <h2>How it works</h2>
+    <p class="section-lede">An <code>.onnx</code> file goes in; a flat array of kernel calls comes out.</p>
+
+    <ol class="pipeline">
+      <li><span class="pin">.onnx</span></li>
+      <li><span class="pstage"><b>1</b> Parse</span></li>
+      <li><span class="pstage"><b>2</b> Optimize</span></li>
+      <li><span class="pstage"><b>3</b> Plan</span></li>
+      <li><span class="pstage"><b>4</b> Execute</span></li>
+      <li><span class="pin">kernel calls</span></li>
+    </ol>
+
+    <div class="cards">
+      <article class="card">
+        <h3><span class="num">1</span> Parse</h3>
+        <p>
+          A hand-rolled protobuf wire reader builds the graph. Unsupported ops fail
+          loudly; a truncated or over-rank tensor is refused, never quietly reshaped.
+        </p>
+      </article>
+      <article class="card">
+        <h3><span class="num">2</span> Optimize</h3>
+        <p>
+          Shape inference &rarr; simplify &rarr; constant-fold &rarr; Conv+BN fusion
+          &rarr; CSE &rarr; dead-code elimination.
+        </p>
+      </article>
+      <article class="card">
+        <h3><span class="num">3</span> Plan</h3>
+        <p>
+          Lifetime analysis assigns every activation an offset into one buffer.
+          AcousticLeakNet's 32 MB of weights run in <b>896 KB</b> of activations,
+          22% below a naive allocation.
+        </p>
+      </article>
+      <article class="card">
+        <h3><span class="num">4</span> Execute</h3>
+        <p>
+          Every node is resolved to a kernel pointer once. A same-shape rerun does
+          <em>zero</em> re-analysis: no dispatch switch, no re-planning, just a walk
+          down a flat array.
+        </p>
+      </article>
+    </div>
+
+    <h3>The memory planner, in one picture</h3>
+    <p>
+      Every activation has a birth and a death. The planner walks tensors in order of
+      first use and greedily drops each one into the smallest already-freed slot it
+      fits in, extending the high-water mark only when nothing fits. Tensors whose
+      lifetimes never overlap share the same bytes.
+    </p>
+
+    <figure class="figure">
+      <svg viewBox="0 0 640 234" role="img" aria-labelledby="plan-title plan-desc">
+        <title id="plan-title">Lifetime-aware activation packing</title>
+        <desc id="plan-desc">Five activation tensors with non-overlapping lifetimes are packed into three reused offsets inside a single buffer, instead of five separate allocations.</desc>
+
+        <line x1="70" y1="196" x2="610" y2="196" stroke="#3a3740" stroke-width="1"/>
+        <text x="70" y="220" class="svg-ax">node 0</text>
+        <text x="340" y="220" class="svg-ax" text-anchor="middle">execution order &#8594;</text>
+        <text x="610" y="220" class="svg-ax" text-anchor="end">node 7</text>
+
+        <text x="60" y="47"  class="svg-ax" text-anchor="end">offset 0</text>
+        <text x="60" y="97"  class="svg-ax" text-anchor="end">+256 B</text>
+        <text x="60" y="147" class="svg-ax" text-anchor="end">+512 B</text>
+
+        <line x1="70" y1="58"  x2="610" y2="58"  stroke="#262327" stroke-width="1"/>
+        <line x1="70" y1="108" x2="610" y2="108" stroke="#262327" stroke-width="1"/>
+        <line x1="70" y1="158" x2="610" y2="158" stroke="#262327" stroke-width="1"/>
+
+        <rect x="70"  y="28" width="200" height="30" rx="4" class="svg-blk"/>
+        <text x="170" y="48" class="svg-lbl" text-anchor="middle">t0</text>
+        <rect x="290" y="28" width="180" height="30" rx="4" class="svg-blk reuse"/>
+        <text x="380" y="48" class="svg-lbl" text-anchor="middle">t3 &#183; reused</text>
+
+        <rect x="140" y="78" width="170" height="30" rx="4" class="svg-blk"/>
+        <text x="225" y="98" class="svg-lbl" text-anchor="middle">t1</text>
+        <rect x="330" y="78" width="280" height="30" rx="4" class="svg-blk reuse"/>
+        <text x="470" y="98" class="svg-lbl" text-anchor="middle">t4 &#183; reused</text>
+
+        <rect x="210" y="128" width="150" height="30" rx="4" class="svg-blk"/>
+        <text x="285" y="148" class="svg-lbl" text-anchor="middle">t2</text>
+
+        <line x1="70" y1="172" x2="610" y2="172" stroke="#e3495d" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="610" y="188" class="svg-hw" text-anchor="end">high-water mark &#8212; the entire allocation</text>
+      </svg>
+      <figcaption>Five activations, three offsets, one buffer. Reset the arena and the next inference reuses all of it.</figcaption>
+    </figure>
+
+    <h3>Two structs carry the whole design</h3>
+    <div class="split">
+      <div>
+        <p>A tensor is a <strong>strided view</strong>, not a buffer. Transpose and reshape rewrite strides; they never touch the data.</p>
+<pre><code class="language-c">typedef struct {
+    void    *data;
+    FeDtype  dtype;
+    int      ndim;
+    int      shape  [FERRITE_MAX_DIMS];
+    int      strides[FERRITE_MAX_DIMS];  /* in elements, not bytes */
+    size_t   nbytes;
+    bool     owns_data;
+} FeTensor;</code></pre>
+      </div>
+      <div>
+        <p>Memory is a <strong>bump arena</strong>. A weight arena, allocated once at load and never reset. An activation arena, reset after every inference.</p>
+<pre><code class="language-c">typedef struct {
+    unsigned char *base;
+    size_t         size;
+    size_t         offset;  /* current bump pointer */
+    size_t         peak;    /* high-water mark      */
+} FeArena;</code></pre>
+      </div>
+    </div>
+    <p class="note">There is no <code>malloc</code> on the inference path.</p>
+  </div>
+</section>
+
+<!-- =========================  ARCHITECTURE  ========================= -->
+<section id="architecture" class="section alt">
+  <div class="container">
+    <p class="eyebrow">The layers</p>
+    <h2>Eleven libraries, pointing one way</h2>
+
+    <div class="table-wrap">
+      <table class="layers">
+        <thead><tr><th>Layer</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><th><code>core/</code></th><td>strided tensors, arena allocator, serialization, FP16/BF16, platform seam</td></tr>
+          <tr><th><code>graph/</code></th><td>computation-graph IR, tensor registry, Kahn topological sort</td></tr>
+          <tr><th><code>ops/</code></th><td>matmul/linear, elementwise, activations, GEMM, conv1d/conv2d (im2col), norms, pooling, attention</td></tr>
+          <tr><th><code>simd/</code></th><td>AVX2 tiled matmul + elementwise behind runtime CPUID, scalar fallback</td></tr>
+          <tr><th><code>planner/</code></th><td>tensor-lifetime analysis + greedy buffer reuse</td></tr>
+          <tr><th><code>optim/</code></th><td>shape inference, folding, fusion, CSE, DCE</td></tr>
+          <tr><th><code>runtime/</code></th><td>the engine and its static execution plan</td></tr>
+          <tr><th><code>importer/</code></th><td>the ONNX protobuf parser</td></tr>
+          <tr><th><code>quantization/</code></th><td>symmetric INT8/INT16, per-tensor and per-channel, dynamic and static</td></tr>
+          <tr><th><code>compiler/</code>, <code>parallel/</code></th><td>linear IR; thread pool + row-parallel GEMM (both opt-in)</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <blockquote class="pull">Dependencies point downward only.</blockquote>
+  </div>
+</section>
+
+<!-- ============================  RULES  ============================= -->
+<section id="rules" class="section">
+  <div class="container">
+    <p class="eyebrow">Constraints</p>
+    <h2>The rules the code is held to</h2>
+
+    <div class="cards rules">
+      <article class="card"><h3>No allocation in hot paths</h3><p>Kernels never <code>malloc</code>. Only <code>fe_conv1d</code> allocates, and it frees its scratch after use.</p></article>
+      <article class="card"><h3>Views over copies</h3><p>Transpose and reshape rewrite strides. They never copy data.</p></article>
+      <article class="card"><h3>Arenas over per-tensor malloc</h3><p>Two arenas, two lifetimes. Freeing an inference is a single pointer reset.</p></article>
+      <article class="card"><h3>Correctness first, speed second</h3><p>The naive matmul is kept deliberately, as the oracle that validates the AVX2 kernel. Don't optimize it away.</p></article>
+      <article class="card"><h3>One test per subsystem</h3><p>The git history shows one subsystem per commit, each with its own test.</p></article>
+      <article class="card accent"><h3>Fail loudly</h3><p>An unsupported op, an over-rank tensor, a truncated field &mdash; all return an error naming the problem. Nothing is silently dropped, truncated, or skipped.</p></article>
+    </div>
+
+    <blockquote class="pull">
+      Zero dependencies. Ferrite links libc and nothing else. A pull request that adds a
+      third-party library &mdash; however good &mdash; will be declined, because the
+      absence of dependencies <em>is</em> the project.
+      <cite>CONTRIBUTING.md</cite>
+    </blockquote>
+  </div>
+</section>
+
+<!-- =========================  CORRECTNESS  ========================== -->
+<section id="correctness" class="section alt">
+  <div class="container">
+    <p class="eyebrow">Verification</p>
+    <h2>Correctness</h2>
+    <p class="section-lede">Being small is worthless if the numbers are wrong.</p>
+
+    <p>Ferrite is checked against ONNX Runtime on every push:</p>
+<pre><code class="language-sh">pip install onnxruntime onnx numpy
+python tools/golden_gen.py
+python tools/golden_compare.py --run-model build/run_model</code></pre>
+
+    <p>
+      Seven models &mdash; MLP, mini-CNN, Conv+BN fusion, LayerNorm MLP, MNIST, and a
+      real 32 MB 1D-CNN &mdash; run through both runtimes with identical seeded input.
+      Worst observed disagreement is <code>max_abs &#8776; 1e-8</code>; three models are
+      <b>bit-exact</b>.
+    </p>
+
+    <div class="cards guards">
+      <article class="card"><h3>Sanitizers, mandatory</h3><p>ASan and UBSan are on by default, and a dedicated CI leg fails the build if they are ever silently dropped.</p></article>
+      <article class="card"><h3>Fuzzing the parser</h3><p>libFuzzer against the ONNX wire reader with a persistent corpus. Every truncated prefix and random byte flip either loads cleanly or fails loudly &mdash; no crash, no hang.</p></article>
+      <article class="card"><h3>An error contract</h3><p>A test deliberately triggers every documented <code>FE_ERR_*</code> path across the public API and asserts outputs are untouched on failure.</p></article>
+      <article class="card"><h3>Gates that bite</h3><p>A coverage floor and a perf gate diffing against a committed per-CPU baseline, alongside a cross-compile leg that runs the full suite under QEMU.</p></article>
+    </div>
+  </div>
+</section>
+
+<!-- =========================  PERFORMANCE  ========================== -->
+<section id="performance" class="section">
+  <div class="container">
+    <p class="eyebrow">Measurements</p>
+    <h2>Performance, honestly</h2>
+
+<pre><code class="language-sh">cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DFERRITE_SANITIZE=OFF
+cmake --build build-release --target bench_model
+./build-release/bench_model
+python tools/bench_onnxruntime.py     # the same model, same input, same timing</code></pre>
+
+    <p>On AcousticLeakNet (AMD Ryzen 5 5600, single-threaded):</p>
+    <div class="table-wrap">
+      <table class="cmp">
+        <thead><tr><th></th><th class="col-us">Ferrite</th><th>ONNX Runtime</th></tr></thead>
+        <tbody>
+          <tr><th>Latency</th><td class="col-us">2.42 ms</td><td><b>1.06 ms</b></td></tr>
+          <tr><th>Binary</th><td class="col-us"><b>222 KB</b></td><td>18.4 MB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      <b>ONNX Runtime is faster, and that is the expected result</b> &mdash; it is a
+      mature runtime with years of kernel tuning behind it. Ferrite's claim is that you
+      can get within ~2.3&times; of it, numerically identical, in 1/83rd the binary and
+      with no dependencies at all.
+    </p>
+
+    <h3>Where the hand-written SIMD pays off</h3>
+    <p>Against Ferrite's own scalar reference:</p>
+    <div class="table-wrap">
+      <table class="bench">
+        <thead><tr><th>Kernel</th><th>naive</th><th>AVX2</th><th>ratio</th></tr></thead>
+        <tbody>
+          <tr><th>MatMul 256&sup3;</th><td>6.92 ms</td><td>1.45 ms</td><td class="ratio">4.78&times;</td></tr>
+          <tr><th>Elementwise add, 1M floats</th><td>0.75 ms</td><td>0.19 ms</td><td class="ratio">3.92&times;</td></tr>
+          <tr><th>GEMM base vs scalar transB</th><td>22.09 ms</td><td>1.41 ms</td><td class="ratio">15.65&times;</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout">
+      <h3>And where it does not</h3>
+      <p>
+        On the <code>[1 &times; 65536 &times; 128]</code> GEMV in AcousticLeakNet, the tiled
+        AVX2 kernel is <b>0.4&times;</b> &mdash; <em>slower</em> than scalar, because a
+        single output row gives the packing cost nothing to amortize against. The
+        dispatcher routes <code>M == 1</code> to scalar for exactly this reason.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================  HARDWARE  ============================ -->
+<section id="hardware" class="section alt">
+  <div class="container">
+    <p class="eyebrow">Portability</p>
+    <h2>It runs on hardware you have lying around</h2>
+
+    <div class="cards two">
+      <article class="card">
+        <h3>Raspberry Pi Zero W</h3>
+        <p>ARMv6 hard-float cross build. The full test suite runs under QEMU in CI &mdash; nothing to flash.</p>
+<pre><code class="language-sh">cmake -S . -B build-pi -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/raspberry-pi-zero-w.toolchain.cmake
+cmake --build build-pi
+ctest --test-dir build-pi</code></pre>
+      </article>
+      <article class="card">
+        <h3>ESP32</h3>
+        <p>An ESP-IDF component compiling the <em>device runtime</em> only: scalar kernels, planner, engine, quantization. The ONNX parser is compiled out.</p>
+<pre><code class="language-sh">cd idf/demo
+idf.py set-target esp32s3
+idf.py build flash monitor</code></pre>
+      </article>
+    </div>
+
+    <h3>Compile the model, not on the device</h3>
+    <p>
+      <code>ferrite_compile</code> does the parsing, shape inference, optimization, and
+      memory planning on your workstation and writes a <b>FEMD</b> artifact: a
+      self-contained, fully-planned model with its weights inline and its memory plan
+      already resolved.
+    </p>
+<pre><code class="language-sh">ferrite_compile model.onnx model.femd [--in-shape WxHxC] [--emit-header]
+                                     [--target esp32] [--max-nodes N]</code></pre>
+    <p>
+      The device then loads it with <code>fe_model_load</code> and runs it with
+      <code>fe_model_run</code> &mdash; no ONNX parser, no shape inference, no optimizer
+      on the target. <code>--emit-header</code> writes the artifact as a C byte array
+      for flash-mapped deployment.
+    </p>
+  </div>
+</section>
+
+<!-- ============================  BUILD  ============================= -->
+<section id="build" class="section">
+  <div class="container">
+    <p class="eyebrow">Get started</p>
+    <h2>Build and test</h2>
+
+<pre><code class="language-sh">cmake -S . -B build -G Ninja                  # GCC or Clang; C11
+cmake --build build                           # 18 test binaries
+ctest --test-dir build --output-on-failure    # 19 entries</code></pre>
+
+    <p>
+      Default flags are <code>-Wall -Wextra -fsanitize=address,undefined</code>, and
+      sanitizer availability is probed at configure time.
+      <b>GCC or Clang only</b> &mdash; MSVC is a hard configure error, because the
+      project needs the POSIX clock and the sanitizers. Use MinGW, MSYS2, or WSL.
+    </p>
+
+    <h3>Run the demos</h3>
+<pre><code class="language-sh">cmake --build build --target demo_mnist   # MNIST, ASCII-art digits
+cmake --build build --target demo         # AcousticLeakNet, a real 1D-CNN
+cmake --build build --target bench_model  # latency, per-op profile, memory
+cmake --build build --target mnist_eval   # full 10k test-set accuracy</code></pre>
+
+    <h3>Turn subsystems off</h3>
+    <p>
+      Nine options gate the optional halves of the project, so a device build compiles
+      only what it actually runs:
+    </p>
+<pre><code class="language-sh">-DFERRITE_ENABLE_IMPORTER=OFF   # drop the ONNX parser (device builds)
+-DFERRITE_ENABLE_OPTIM=OFF      # drop the optimization passes
+-DFERRITE_ENABLE_AVX2=OFF       # scalar kernels only
+-DFERRITE_ENABLE_PROFILER=OFF   # drop the timing profiler</code></pre>
+    <p>
+      Capacities are cache variables too: <code>-DFE_MAX_NODES=</code>,
+      <code>-DFE_MAX_TENSORS=</code>, <code>-DFERRITE_MAX_DIMS=</code>. Exceeding one is
+      a loud load-time error naming the knob, never a truncated shape.
+    </p>
+
+    <div class="win-note">
+      <b>Windows / MinGW:</b> binaries land as <code>*.exe</code> in <code>build/</code>
+      and copy <code>libwinpthread-1.dll</code> beside themselves. Run through CTest or
+      from <code>build/</code>.
+    </div>
+  </div>
+</section>
+
+<!-- =========================  LIMITATIONS  ========================== -->
+<section id="limitations" class="section alt">
+  <div class="container">
+    <p class="eyebrow">Trade-offs</p>
+    <h2>Honest limitations</h2>
+    <p class="section-lede">
+      Every one of these is a deliberate choice with a cost attached. They are listed
+      here for the same reason they are listed in the README.
+    </p>
+
+    <ul class="limits">
+      <li><b>ONNX Runtime is ~2.3&times; faster.</b> Ferrite trades speed for size and simplicity.</li>
+      <li>The ONNX surface is the <b>20+ mapped ops</b>. Anything else fails loudly with <code>FE_ERR_SHAPE</code> &mdash; never silently.</li>
+      <li><b>AVX2 only.</b> No NEON, no AVX-512. NEON waits for a Pi Zero 2 W+ target.</li>
+      <li>Capacities are fixed but configurable: <b>512 nodes / 1024 tensors / 8 dims</b> by default.</li>
+      <li>The engine hot path is <b>deliberately single-threaded</b>. The thread pool and the linear IR compiler exist and are tested, but are opt-in.</li>
+      <li>Calibration collects raw <code>max(|x|)</code> activation ranges; <b>percentile smoothing is not built</b>.</li>
+      <li>ESP32 hardware validation is a documented <b>manual step</b>; CI is a compile gate.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ========================  START READING  ========================= -->
+<section id="reading" class="section">
+  <div class="container">
+    <p class="eyebrow">Next</p>
+    <h2>Where to start reading</h2>
+    <div class="links">
+      <a class="linkcard" href="https://github.com/AaravGupta17/Ferrite/blob/main/docs/guide.md">
+        <b>docs/guide.md</b><span>How every subsystem works and connects.</span></a>
+      <a class="linkcard" href="https://github.com/AaravGupta17/Ferrite/blob/main/docs/deep-dive.md">
+        <b>docs/deep-dive.md</b><span>Long-form internals, down to byte layouts.</span></a>
+      <a class="linkcard" href="https://github.com/AaravGupta17/Ferrite/blob/main/tests/test_engine.c">
+        <b>tests/test_engine.c</b><span>The best end-to-end example: build a graph, run it, check the numbers.</span></a>
+      <a class="linkcard" href="https://github.com/AaravGupta17/Ferrite/blob/main/CONTRIBUTING.md">
+        <b>CONTRIBUTING.md</b><span>Build, test, and commit conventions.</span></a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <div>
+      <p class="footer-brand">Ferrite</p>
+      <p class="footer-tag">A neural-network inference runtime in 222 KB of C11, with zero dependencies.</p>
+    </div>
+    <p class="footer-meta">
+      MIT &mdash; &copy; 2026 Aarav Gupta and Armaan Guha &middot;
+      <a href="https://github.com/AaravGupta17/Ferrite">github.com/AaravGupta17/Ferrite</a>
+    </p>
+  </div>
+</footer>
+
+<script src="main.js"></script>
+</body>
+</html>
